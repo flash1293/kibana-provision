@@ -1,8 +1,10 @@
 # kibana-provision
 
-A command line helper and a Kibana plugin to easily provision Kibana saved objects in a fresh Kibana instance
+A command line helper and a Kibana plugin to easily provision Kibana saved objects in a fresh Kibana instance.
 
 # Usage
+
+Note: For now this only supports a subset of all saved objects types: https://github.com/flash1293/kibana-provision/blob/master/index.js#L11
 
 ## `pull`
 
