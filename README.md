@@ -16,6 +16,27 @@ Pushing local saved objects into space: `URL_KIBANA=http[s]://username:password@
 
 This will push all files in the current directory following the `<type>-<id>.json` naming scheme into the specified space, overwriting existing objects. For development: If `--watch` is set, it fill watch for changes to the local files and re-push on every change.
 
+## Example workflow: Keeping your dashboard under version control
+
+### Initialization
+* Create a new space just for you
+* Put together your dashboard
+* Use `pull` command to pull into empty directory
+* Check into your version control
+
+
+### Rollout (this depends a lot on your setup, another approach would be mounting the working copy into a docker container as a volume, etc.)
+* Checkout your repository on host running production Kibana instance
+* Edit `kibana.yml` to load working copy directory into shared space used by analysts
+* (Re)start Kibana or send `SIGHUP` signal to kick off provisioning
+
+### Updates
+* Start `push --watch` on your private space
+* Change config files in your preferred text editor
+* Refresh dashboard to see changes
+* When doing changes in the Kibana UI, run `pull` afterwards to update your local image
+* When finished, commit to version control and run `push` on the shared space
+
 ## Automatic provisioning
 
 Installing the plugin `provision` will make it possible to load a local directory following the `<type>-<id>.json` naming scheme on Kibana start / config reload via `SIGHUP` signal to the Kibana process.
@@ -25,6 +46,8 @@ provision:
   - path: /path/to/local/dir/containing/json/files
     spaceId: space to load with objects 
 ```
+
+This will override existing saved objects in the space with the same id. Saved objects with unknown ids won't be touched. If the space does not exist yet, it will be created (with all features enabled). It's possible to load multiple directories into a single space.
 
 # Development
 
