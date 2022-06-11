@@ -1,0 +1,14 @@
+{
+  "id": "provision",
+  "version": "1.0.0",
+  "kibanaVersion": "kibana",
+  "owner": {
+    "name": "email@johannes-reuter.de",
+    "githubTeam": ""
+  },
+  "description": "Automatically provision dashboards and other saved objects",
+  "server": true,
+  "ui": false,
+  "requiredPlugins": ["spaces"],
+  "optionalPlugins": []
+}
