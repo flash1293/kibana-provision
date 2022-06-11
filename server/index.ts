@@ -100,11 +100,11 @@ export class ProvisionPlugin implements Plugin {
             readStream: createListStream(objects),
             createNewCopies: false,
           });
-          if (response.errors) {
+          if (response.errors && response.errors.length) {
             this.logger.error('Errors during provisioning');
             this.logger.error(JSON.stringify(response.errors, null, 2));
           }
-          if (response.warnings) {
+          if (response.warnings.length) {
             this.logger.warn('Warnings during provisioning');
             this.logger.warn(JSON.stringify(response.warnings, null, 2));
           }
