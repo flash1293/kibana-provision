@@ -1,12 +1,18 @@
 # kibana-provision
 
+<<<<<<< HEAD
 Automatically provision and manage Kibana saved objects with ease.
 
 There are two parts to `kibana-provision`:
 * A command line helper to load Kibana saved objects as readable JSON files and write them back
 * A Kibana plugin to automatically provision Kibana spaces via local JSON files, http urls or data urls
+=======
+A command line helper and a Kibana plugin to easily provision Kibana saved objects in a fresh Kibana instance.
+>>>>>>> 47eed15eeaa7706540f7d4abb747229de648846c
 
 # Usage
+
+Note: For now this only supports a subset of all saved objects types: https://github.com/flash1293/kibana-provision/blob/master/index.js#L11
 
 ## `pull`
 
@@ -32,6 +38,27 @@ Like `pack`, but instead of writing to an ndjson file, it outputs the content as
 
 Explode a regular ndjson file into individual json files which can be edited comfortably and be used with `push`. To explode the file `export.ndjson` (or specified file name) in your current working directory into individual json files, call `npx kibana-provision unpack [file]`.
 
+## Example workflow: Keeping your dashboard under version control
+
+### Initialization
+* Create a new space just for you
+* Put together your dashboard
+* Use `pull` command to pull into empty directory
+* Check into your version control
+
+
+### Rollout (this depends a lot on your setup, another approach would be mounting the working copy into a docker container as a volume, etc.)
+* Checkout your repository on host running production Kibana instance
+* Edit `kibana.yml` to load working copy directory into shared space used by analysts
+* (Re)start Kibana or send `SIGHUP` signal to kick off provisioning
+
+### Updates
+* Start `push --watch` on your private space
+* Change config files in your preferred text editor
+* Refresh dashboard to see changes
+* When doing changes in the Kibana UI, run `pull` afterwards to update your local image
+* When finished, commit to version control and run `push` on the shared space
+
 ## Automatic provisioning
 
 Installing the plugin `provision` will make it possible to load a local directory following the `<type>-<id>.json` naming scheme on Kibana start / config reload via `SIGHUP` signal to the Kibana process.
@@ -48,6 +75,8 @@ provision:
 ```
 
 Use `default` as space id for the implicit default space.
+
+This will override existing saved objects in the space with the same id. Saved objects with unknown ids won't be touched. If the space does not exist yet, it will be created (with all features enabled). It's possible to load multiple directories into a single space. Multiple config sets are loaded in order which means if the same saved object is defined in multiple config sets for the same space, the last definition wins.
 
 # Development
 
