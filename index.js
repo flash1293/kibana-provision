@@ -72,6 +72,26 @@ async function push() {
   console.log('Pushed objects to Kibana');
 }
 
+function pack() {
+  const objects = [];
+  fs.readdirSync('.', { encoding: 'utf8' }).forEach((file) => {
+    if (soTypes.some((type) => file.startsWith(type)) && file.endsWith('.json')) {
+      const object = JSON.parse(fs.readFileSync(file, { encoding: 'utf8' }));
+      packJSONPropsInPlace(object);
+      objects.push(JSON.stringify(object));
+    }
+  });
+  return objects.join('\n');
+}
+
+function unpack() {
+      const objects = fs.readFileSync(spaceId || './export.ndjson', { encoding: 'utf8'}).split('\n').map(JSON.parse).filter(o => !o.exportedCount);
+      objects.forEach(unpackJSONPropsInPlace);
+      objects.forEach((object) => {
+        fs.writeFileSync(objectFilename(object), JSON.stringify(object, null, 2));
+      });
+}
+
 module.exports = async function () {
   try {
     if (command === 'push') {
@@ -100,6 +120,13 @@ module.exports = async function () {
       objects.forEach((object) => {
         fs.writeFileSync(objectFilename(object), JSON.stringify(object, null, 2));
       });
+    } else if (command === 'pack') {
+      fs.writeFileSync(spaceId || './export.ndjson', pack());
+    } else if (command === 'data-url') {
+      console.log(`data:text;base64,${Buffer.from(pack(), 'utf8').toString('base64')}`)
+      pack();
+    } else if (command === 'unpack') {
+      unpack();
     }
   } catch (e) {
     console.log(e);

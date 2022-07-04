@@ -11,6 +11,10 @@ import {
   SavedObjectsClient,
 } from '../../../src/core/server';
 import { SpacesPluginStart } from '../../../x-pack/plugins/spaces/server';
+import url from 'url';
+// @ts-ignore-error
+import parseDataUrl from 'data-urls';
+import axios from 'axios';
 const fs = require('fs');
 
 const soTypes = ['index-pattern', 'dashboard', 'lens', 'map', 'search', 'query', 'visualization'];
@@ -28,16 +32,13 @@ function packJSONPropsInPlace(object: Record<string, object | string>) {
   });
 }
 
-//  This exports static code and TypeScript types,
-//  as well as, Kibana Platform `plugin()` initializer.
-
-type ProvisionConfig = undefined | Array<{ path: string; spaceId: string }>;
+type ProvisionConfig = undefined | Array<{ location: string; spaceId: string }>;
 
 export const config: PluginConfigDescriptor<ProvisionConfig> = {
   schema: schema.maybe(
     schema.arrayOf(
       schema.object({
-        path: schema.string(),
+        location: schema.string(),
         spaceId: schema.string(),
       })
     )
@@ -65,34 +66,56 @@ export class ProvisionPlugin implements Plugin {
       core.savedObjects.createInternalRepository(['space'])
     );
     this.logger.debug('provision: Started');
-    this.config.subscribe((config) => {
+    this.config.subscribe(async (config) => {
       if (config && config.length > 0) {
         this.logger.info(`Starting provisioning of ${config.length} config sets`);
       }
-      (config || []).forEach(async ({ path, spaceId }) => {
+      for (const { location, spaceId} of (config || [])) {
         try {
           const existingSpace = await adminClient.find({
             type: 'space',
             perPage: 1,
             search: spaceId,
           });
-          if (existingSpace.total === 0) {
+          if (existingSpace.total === 0 || spaceId === 'default') {
             await adminClient.create('space', { name: spaceId, disabledFeatures: [] }, { id: spaceId });
           }
           const namespace = plugins.spaces.spacesService.spaceIdToNamespace(spaceId);
           const importer = core.savedObjects.createImporter(adminClient);
           const objects: unknown[] = [];
-          ``;
           let counter = 0;
-          fs.readdirSync(path, { encoding: 'utf8' }).forEach((file: string) => {
-            const fullPath = `${path}/${file}`;
-            if (soTypes.some(type => file.startsWith(type)) && file.endsWith('.json')) {
-              const object = JSON.parse(fs.readFileSync(fullPath, { encoding: 'utf8' }));
-              packJSONPropsInPlace(object);
-              objects.push(object);
-              counter++;
-            }
-          });
+          let parsedUrl = undefined;
+          try {
+            parsedUrl = url.parse(location);
+          } catch {
+            // ignore
+          }
+          let type = 'path';
+          if (parsedUrl && parsedUrl.protocol?.startsWith('http')) {
+            type = 'http';
+            const response = await axios.get(location);
+            (response.data as string).split('\n').forEach(row => {
+              const o = JSON.parse(row);
+              if (!o.exportedCount) objects.push(o);
+            })
+          } else if (parsedUrl && parsedUrl.protocol === 'data:') {
+            type = 'data';
+            const data: string = parseDataUrl(location).body.toString();
+            data.split('\n').forEach(row => {
+              const o = JSON.parse(row);
+              if (!o.exportedCount) objects.push(o);
+            })
+          } else {
+            fs.readdirSync(location, { encoding: 'utf8' }).forEach((file: string) => {
+              const fullPath = `${location}/${file}`;
+              if (soTypes.some(type => file.startsWith(type)) && file.endsWith('.json')) {
+                const object = JSON.parse(fs.readFileSync(fullPath, { encoding: 'utf8' }));
+                packJSONPropsInPlace(object);
+                objects.push(object);
+                counter++;
+              }
+            });
+          }
 
           const response = await importer.import({
             overwrite: true,
@@ -109,12 +132,12 @@ export class ProvisionPlugin implements Plugin {
             this.logger.warn(JSON.stringify(response.warnings, null, 2));
           }
           if (response.successCount > 0) {
-            this.logger.info(`Successfully imported ${response.successCount} objects from "${path}" into ${spaceId}`);
+            this.logger.info(`Successfully imported ${response.successCount} objects from "${type === 'data' ? 'data url' : location}" into ${spaceId}`);
           }
         } catch (e) {
           this.logger.error(e);
         }
-      });
+      }
     });
     return {};
   }
