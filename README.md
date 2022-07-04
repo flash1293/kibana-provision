@@ -1,14 +1,10 @@
 # kibana-provision
 
-<<<<<<< HEAD
 Automatically provision and manage Kibana saved objects with ease.
 
 There are two parts to `kibana-provision`:
 * A command line helper to load Kibana saved objects as readable JSON files and write them back
 * A Kibana plugin to automatically provision Kibana spaces via local JSON files, http urls or data urls
-=======
-A command line helper and a Kibana plugin to easily provision Kibana saved objects in a fresh Kibana instance.
->>>>>>> 47eed15eeaa7706540f7d4abb747229de648846c
 
 # Usage
 
