@@ -72,6 +72,27 @@ async function push() {
   console.log('Pushed objects to Kibana');
 }
 
+async function pull() {
+  const response = await axios.post(
+    `${baseUrl}/s/${spaceId}/api/saved_objects/_export`,
+    {
+      type: soTypes,
+      excludeExportDetails: true,
+      includeReferencesDeep: true,
+    },
+    {
+      headers: {
+        'kbn-xsrf': 'abc',
+      },
+    }
+  );
+  const objects = response.data.split('\n').map(JSON.parse);
+  objects.forEach(unpackJSONPropsInPlace);
+  objects.forEach((object) => {
+    fs.writeFileSync(objectFilename(object), JSON.stringify(object, null, 2));
+  });
+}
+
 function pack() {
   const objects = [];
   fs.readdirSync('.', { encoding: 'utf8' }).forEach((file) => {
@@ -85,11 +106,31 @@ function pack() {
 }
 
 function unpack() {
-      const objects = fs.readFileSync(spaceId || './export.ndjson', { encoding: 'utf8'}).split('\n').map(JSON.parse).filter(o => !o.exportedCount);
-      objects.forEach(unpackJSONPropsInPlace);
-      objects.forEach((object) => {
-        fs.writeFileSync(objectFilename(object), JSON.stringify(object, null, 2));
-      });
+  const objects = fs
+    .readFileSync(spaceId || './export.ndjson', { encoding: 'utf8' })
+    .split('\n')
+    .map(JSON.parse)
+    .filter((o) => !o.exportedCount);
+  objects.forEach(unpackJSONPropsInPlace);
+  objects.forEach((object) => {
+    fs.writeFileSync(objectFilename(object), JSON.stringify(object, null, 2));
+  });
+}
+
+function block() {
+  let unblock;
+  const promise = new Promise((res) => {
+    unblock = res;
+  });
+  return {
+    wait: () => promise,
+    unblock
+  };
+}
+
+function unblocked() {
+  const promise = Promise.resolve(true);
+  return () => promise;
 }
 
 module.exports = async function () {
@@ -102,28 +143,31 @@ module.exports = async function () {
         push();
       }
     } else if (command === 'pull') {
-      const response = await axios.post(
-        `${baseUrl}/s/${spaceId}/api/saved_objects/_export`,
-        {
-          type: soTypes,
-          excludeExportDetails: true,
-          includeReferencesDeep: true,
-        },
-        {
-          headers: {
-            'kbn-xsrf': 'abc',
-          },
-        }
-      );
-      const objects = response.data.split('\n').map(JSON.parse);
-      objects.forEach(unpackJSONPropsInPlace);
-      objects.forEach((object) => {
-        fs.writeFileSync(objectFilename(object), JSON.stringify(object, null, 2));
-      });
+      pull();
+    } else if (command === 'sync') {
+      let blocked = unblocked();
+      await pull();
+      fs.watch('.', { encoding: 'utf8' }, debounce(async () => {
+        await blocked();
+        const { unblock, wait } = block();
+        blocked = wait;
+        await push();
+        unblock();
+      }));
+      const pollInterval = Number(watch) || 5000;
+      async function waitAndPull() {
+        await blocked();
+        const { unblock, wait } = block();
+        blocked = wait;
+        await pull();
+        unblock();
+        setTimeout(waitAndPull, pollInterval);
+      }
+      setTimeout(waitAndPull, pollInterval);
     } else if (command === 'pack') {
       fs.writeFileSync(spaceId || './export.ndjson', pack());
     } else if (command === 'data-url') {
-      console.log(`data:text;base64,${Buffer.from(pack(), 'utf8').toString('base64')}`)
+      console.log(`data:text;base64,${Buffer.from(pack(), 'utf8').toString('base64')}`);
       pack();
     } else if (command === 'unpack') {
       unpack();
